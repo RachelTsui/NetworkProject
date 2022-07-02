@@ -7,7 +7,9 @@ struct proto	proto_v6 = { proc_v6, send_v6, NULL, NULL, 0, IPPROTO_ICMPV6 };
 #endif
 
 int	datalen = 56;		/* data that goes with ICMP echo request */
-
+int send_count = 0;     //发送数量
+int send_time_interval = 1; //发送间隔
+bool f_flag = 0; //-f标志
 int
 main(int argc, char **argv)
 {
@@ -25,6 +27,14 @@ main(int argc, char **argv)
 			print_help();
 			break;
 
+		case 'i':
+			sscanf(optarg, "%d", &send_time_interval);
+			break;
+
+		case 'f': //极限检测，快速连续ping⼀台主机，ping的速度达到100次每秒
+			f_flag = 1;
+			break;
+		
 		case '?':
 			err_quit("unrecognized option: %c", c);
 		}
@@ -247,11 +257,14 @@ readloop(void)
 }
 
 void
-sig_alrm(int signo)
+sig_alrm(int signo) //-i 定时发送
 {
         (*pr->fsend)();
-
-        alarm(1);
+		send_count++;
+		if(f_flag)
+			ualarm(1000, 0);
+		else
+        	alarm(send_time_interval);
         return;         /* probably interrupts recvfrom() */
 }
 

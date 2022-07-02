@@ -9,15 +9,17 @@ struct proto	proto_v6 = { proc_v6, send_v6, NULL, NULL, 0, IPPROTO_ICMPV6 };
 int	datalen = 56;		/* data that goes with ICMP echo request */
 int send_count = 0;     //发送数量
 int send_time_interval = 1; //发送间隔
-bool f_flag = 0; //-f标志
-int
+int f_flag = 0; //-f标志
+int n_flag = 0; //-n标志
+
 main(int argc, char **argv)
 {
 	int				c;
 	struct addrinfo	*ai;
+	int preload = 0;
 
 	opterr = 0;		/* don't want getopt() writing to stderr */
-	while ( (c = getopt(argc, argv, "bdfhqrvWt:s:i:")) != -1) {
+	while ( (c = getopt(argc, argv, "bdfhqrvWt:s:i:l:")) != -1) {
 		switch (c) {
 		case 'v':
 			verbose++;
@@ -35,6 +37,14 @@ main(int argc, char **argv)
 			f_flag = 1;
 			break;
 		
+		case 'l':
+			sscanf(optarg, "%d", &preload);
+			if (preload < 0 || preload > 65535)
+				printf ("illegal preload value\n");
+			else
+				n_flag = 1;
+			break;
+
 		case '?':
 			err_quit("unrecognized option: %c", c);
 		}
@@ -68,6 +78,38 @@ main(int argc, char **argv)
 	pr->sasend = ai->ai_addr;
 	pr->sarecv = calloc(1, ai->ai_addrlen);
 	pr->salen = ai->ai_addrlen;
+
+	if (n_flag == 1) {
+		int				size;
+		char			recvbuf[BUFSIZE];
+		socklen_t		len;
+		ssize_t			n;
+		struct timeval	tval;
+		/*创建原始套接字，需要超级用户权限*/
+		sockfd = socket(pr->sasend->sa_family, SOCK_RAW, pr->icmpproto);
+		setuid(getuid());		/* don't need special permissions any more */
+
+		size = 60 * 1024;		/* OK if setsockopt fails */
+		setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
+		/*发送ICMP回显请求*/
+		int num = 0;
+		while (num < preload)
+		{
+			send_v4();
+			num++;
+		}
+		int recv_count = 0;
+		while (recv_count < preload)
+		{
+			n = recvfrom(sockfd, recvbuf, sizeof(recvbuf), 0, pr->sarecv, &pr->salen); //接收到的字节数
+			gettimeofday(&tval, NULL);
+			(*pr->fproc)(recvbuf, n, &tval); //写 
+			recv_count++;
+		}
+		n_flag = 0;
+		
+		printf("Finish ping -l\n");
+	}
 
 	readloop();
 
@@ -421,5 +463,5 @@ void print_help() {
 	printf("-r 忽略普通的Routing Table，直接将数据包发送到主机上\n");
 	printf("-s<数据包大小> 设置数据包大小\n");
 	printf("-t<存活数值> 设置ttl值(IPv4)\n");
-	printf("-W<timeout> 在等待timeout秒后开始之星\n");
+	printf("-W<timeout> 在等待timeout秒后开始执行\n");
 }

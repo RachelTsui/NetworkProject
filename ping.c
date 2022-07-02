@@ -7,18 +7,42 @@ struct proto	proto_v6 = { proc_v6, send_v6, NULL, NULL, 0, IPPROTO_ICMPV6 };
 #endif
 
 int	datalen = 56;		/* data that goes with ICMP echo request */
+int send_count = 0;     //发送数量
+int send_time_interval = 1; //发送间隔
+int f_flag = 0; //-f标志
+int n_flag = 0; //-n标志
 
-int
 main(int argc, char **argv)
 {
 	int				c;
 	struct addrinfo	*ai;
+	int preload = 0;
 
 	opterr = 0;		/* don't want getopt() writing to stderr */
-	while ( (c = getopt(argc, argv, "v")) != -1) {
+	while ( (c = getopt(argc, argv, "bdfhqrvWt:s:i:l:")) != -1) {
 		switch (c) {
 		case 'v':
 			verbose++;
+			break;
+
+		case 'h':
+			print_help();
+			break;
+
+		case 'i':
+			sscanf(optarg, "%d", &send_time_interval);
+			break;
+
+		case 'f': //极限检测，快速连续ping⼀台主机，ping的速度达到100次每秒
+			f_flag = 1;
+			break;
+		
+		case 'l':
+			sscanf(optarg, "%d", &preload);
+			if (preload < 0 || preload > 65535)
+				printf ("illegal preload value\n");
+			else
+				n_flag = 1;
 			break;
 
 		case '?':
@@ -28,18 +52,18 @@ main(int argc, char **argv)
 
 	if (optind != argc-1)
 		err_quit("usage: ping [ -v ] <hostname>");
-	host = argv[optind];
+	host = argv[optind]; /*目标主机名*/
 
-	pid = getpid();
+	pid = getpid(); /*进程号*/
 	signal(SIGALRM, sig_alrm);
 
-	ai = host_serv(host, NULL, 0, 0);
+	ai = host_serv(host, NULL, 0, 0); /*获取主机名相关的addrinfo结构*/
 
 	printf("ping %s (%s): %d data bytes\n", ai->ai_canonname,
-		   Sock_ntop_host(ai->ai_addr, ai->ai_addrlen), datalen);
+		   Sock_ntop_host(ai->ai_addr, ai->ai_addrlen), datalen); /*返回套接字关联的IP地址*/
 
 		/* 4initialize according to protocol */
-	if (ai->ai_family == AF_INET) {
+	if (ai->ai_family == AF_INET) { /*根据IP协议版本号指定处理函数*/
 		pr = &proto_v4;
 #ifdef	IPV6
 	} else if (ai->ai_family == AF_INET6) {
@@ -55,6 +79,38 @@ main(int argc, char **argv)
 	pr->sarecv = calloc(1, ai->ai_addrlen);
 	pr->salen = ai->ai_addrlen;
 
+	if (n_flag == 1) {
+		int				size;
+		char			recvbuf[BUFSIZE];
+		socklen_t		len;
+		ssize_t			n;
+		struct timeval	tval;
+		/*创建原始套接字，需要超级用户权限*/
+		sockfd = socket(pr->sasend->sa_family, SOCK_RAW, pr->icmpproto);
+		setuid(getuid());		/* don't need special permissions any more */
+
+		size = 60 * 1024;		/* OK if setsockopt fails */
+		setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
+		/*发送ICMP回显请求*/
+		int num = 0;
+		while (num < preload)
+		{
+			send_v4();
+			num++;
+		}
+		int recv_count = 0;
+		while (recv_count < preload)
+		{
+			n = recvfrom(sockfd, recvbuf, sizeof(recvbuf), 0, pr->sarecv, &pr->salen); //接收到的字节数
+			gettimeofday(&tval, NULL);
+			(*pr->fproc)(recvbuf, n, &tval); //写 
+			recv_count++;
+		}
+		n_flag = 0;
+		
+		printf("Finish ping -l\n");
+	}
+
 	readloop();
 
 	exit(0);
@@ -69,6 +125,7 @@ proc_v4(char *ptr, ssize_t len, struct timeval *tvrecv)
 	struct icmp		*icmp;
 	struct timeval	*tvsend;
 
+	/*验证报文合法性*/
 	ip = (struct ip *) ptr;		/* start of IP header */
 	hlen1 = ip->ip_hl << 2;		/* length of IP header */
 
@@ -76,21 +133,22 @@ proc_v4(char *ptr, ssize_t len, struct timeval *tvrecv)
 	if ( (icmplen = len - hlen1) < 8)
 		err_quit("icmplen (%d) < 8", icmplen);
 
-	if (icmp->icmp_type == ICMP_ECHOREPLY) {
-		if (icmp->icmp_id != pid)
+	if (icmp->icmp_type == ICMP_ECHOREPLY) { /*ICMP回显应答*/
+		if (icmp->icmp_id != pid) /*只处理发送给本进程的回显应答*/
 			return;			/* not a response to our ECHO_REQUEST */
 		if (icmplen < 16)
 			err_quit("icmplen (%d) < 16", icmplen);
-
+		/*获取报文发送时间*/
 		tvsend = (struct timeval *) icmp->icmp_data;
+		/*计算RTT*/
 		tv_sub(tvrecv, tvsend);
 		rtt = tvrecv->tv_sec * 1000.0 + tvrecv->tv_usec / 1000.0;
-
+		/*打印出回显应答报文的数据长度，序列号ttl，报文往返时间TTL*/
 		printf("%d bytes from %s: seq=%u, ttl=%d, rtt=%.3f ms\n",
 				icmplen, Sock_ntop_host(pr->sarecv, pr->salen),
 				icmp->icmp_seq, ip->ip_ttl, rtt);
 
-	} else if (verbose) {
+	} else if (verbose) { /*打印其他类型的ICMP报文*/
 		printf("  %d bytes from %s: type = %d, code = %d\n",
 				icmplen, Sock_ntop_host(pr->sarecv, pr->salen),
 				icmp->icmp_type, icmp->icmp_code);
@@ -176,15 +234,15 @@ send_v4(void)
 	struct icmp	*icmp;
 
 	icmp = (struct icmp *) sendbuf;
-	icmp->icmp_type = ICMP_ECHO;
+	icmp->icmp_type = ICMP_ECHO; /*类型 = 8, 代码 = 0 请求回显*/
 	icmp->icmp_code = 0;
-	icmp->icmp_id = pid;
-	icmp->icmp_seq = nsent++;
-	gettimeofday((struct timeval *) icmp->icmp_data, NULL);
+	icmp->icmp_id = pid; /*标识符字段设置为发送进程的pid*/
+	icmp->icmp_seq = nsent++; /*序列号*/
+	gettimeofday((struct timeval *) icmp->icmp_data, NULL); /*填充发送时间戳*/
 
-	len = 8 + datalen;		/* checksum ICMP header and data */
+	len = 8 + datalen;		/* checksum ICMP header and data */ /*ICMP报文长度64字节*/
 	icmp->icmp_cksum = 0;
-	icmp->icmp_cksum = in_cksum((u_short *) icmp, len);
+	icmp->icmp_cksum = in_cksum((u_short *) icmp, len); /*计算校验和*/
 
 	sendto(sockfd, sendbuf, len, 0, pr->sasend, pr->salen);
 }
@@ -218,36 +276,39 @@ readloop(void)
 	socklen_t		len;
 	ssize_t			n;
 	struct timeval	tval;
-
+	/*创建原始套接字，需要超级用户权限*/
 	sockfd = socket(pr->sasend->sa_family, SOCK_RAW, pr->icmpproto);
 	setuid(getuid());		/* don't need special permissions any more */
 
 	size = 60 * 1024;		/* OK if setsockopt fails */
 	setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
-
+	/*发送ICMP回显请求*/
 	sig_alrm(SIGALRM);		/* send first packet */
 
 	for ( ; ; ) {
 		len = pr->salen;
-		n = recvfrom(sockfd, recvbuf, sizeof(recvbuf), 0, pr->sarecv, &len);
-		if (n < 0) {
+		n = recvfrom(sockfd, recvbuf, sizeof(recvbuf), 0, pr->sarecv, &len); /*接收到达接口的ICMP报文*/
+		if (n < 0) { 
 			if (errno == EINTR)
 				continue;
 			else
 				err_sys("recvfrom error");
 		}
 
-		gettimeofday(&tval, NULL);
-		(*pr->fproc)(recvbuf, n, &tval);
+		gettimeofday(&tval, NULL); /*获取报文到达时间*/
+		(*pr->fproc)(recvbuf, n, &tval); /*处理接收的报文*/
 	}
 }
 
 void
-sig_alrm(int signo)
+sig_alrm(int signo) //-i 定时发送
 {
         (*pr->fsend)();
-
-        alarm(1);
+		send_count++;
+		if(f_flag)
+			ualarm(1000, 0);
+		else
+        	alarm(send_time_interval);
         return;         /* probably interrupts recvfrom() */
 }
 
@@ -272,7 +333,7 @@ sock_ntop_host(const struct sockaddr *sa, socklen_t salen)
         switch (sa->sa_family) {
         case AF_INET: {
                 struct sockaddr_in      *sin = (struct sockaddr_in *) sa;
-
+				/*IP地址数值格式转表达格式*/
                 if (inet_ntop(AF_INET, &sin->sin_addr, str, sizeof(str)) == NULL)
                         return(NULL);
                 return(str);
@@ -390,4 +451,17 @@ err_sys(const char *fmt, ...)
         err_doit(1, LOG_ERR, fmt, ap);
         va_end(ap);
         exit(1);
+}
+
+void print_help() {
+	printf("-h 显示帮助信息\n");
+	printf("-b 广播(IPv4)\n");
+	printf("-d 使用Socket的SO_DEBUG功能\n");
+	printf("-f 极限检测\n");
+	printf("-i<间隔秒数> 指定收发信息的时间间隔\n");
+	printf("-q 安静模式\n");
+	printf("-r 忽略普通的Routing Table，直接将数据包发送到主机上\n");
+	printf("-s<数据包大小> 设置数据包大小\n");
+	printf("-t<存活数值> 设置ttl值(IPv4)\n");
+	printf("-W<timeout> 在等待timeout秒后开始执行\n");
 }

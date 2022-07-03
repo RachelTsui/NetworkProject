@@ -15,6 +15,7 @@ int debug_flag = 0; //-d标志
 int ignore_route_flag = 1;//-r标志
 int quiet_flag = 0; //-q标志
 int ring_flag = 0; //-a标志
+int broadcast_flag = 0; //-b标志
 
 
 main(int argc, char **argv)
@@ -62,6 +63,9 @@ main(int argc, char **argv)
 			break;
 		case 'a':
 			ring_flag = 1;
+			break;	
+		case 'b':
+			broadcast_flag = 1;
 			break;	
 		case '?':
 			err_quit("unrecognized option: %c", c);

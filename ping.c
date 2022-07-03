@@ -18,6 +18,15 @@ int ring_flag = 0; //-a标志
 int broadcast_flag = 0; //-b标志
 int ttl_flag = 0;//-t标志
 
+int rttCount = 0;
+int count = 64;
+int ttl = 0;
+int tvalBegin = 0;
+int rttTotal = 64;
+int recvCount = 0;
+int sendCount = 0;
+int rttMin = 0;
+int rttMax = 64;
 
 main(int argc, char **argv)
 {

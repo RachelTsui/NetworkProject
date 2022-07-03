@@ -7,26 +7,26 @@ struct proto	proto_v6 = { proc_v6, send_v6, NULL, NULL, 0, IPPROTO_ICMPV6 };
 #endif
 
 int	datalen = 56;		/* data that goes with ICMP echo request */
-int send_count = 0;     //发送数量
+long long int send_count = 0;     //发送数量
 int send_time_interval = 1; //发送间隔
 int f_flag = 0; //-f标志
 int n_flag = 0; //-n标志
 int debug_flag = 0; //-d标志
-int ignore_route_flag = 1;//-r标志
+int ignore_route_flag = 0;//-r标志
 int quiet_flag = 0; //-q标志
 int ring_flag = 0; //-a标志
 int broadcast_flag = 0; //-b标志
 int ttl_flag = 0;//-t标志
 
 int rttCount = 0;
-int count = 64;
+int count = 0;
 int ttl = 0;
 int tvalBegin = 0;
 int rttTotal = 64;
-int recvCount = 0;
-int sendCount = 0;
-int rttMin = 0;
-int rttMax = 64;
+long long int recvCount = 0;
+long long int sendCount = 0;
+double rttMin = 0;
+double rttMax = 64;
 
 main(int argc, char **argv)
 {

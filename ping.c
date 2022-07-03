@@ -287,7 +287,12 @@ readloop(void)
 	/*创建原始套接字，需要超级用户权限*/
 	sockfd = socket(pr->sasend->sa_family, SOCK_RAW, pr->icmpproto);
 	setuid(getuid());		/* don't need special permissions any more */
-
+	if (broadcast_flag){ //广播特性
+		setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast_flag, sizeof(broadcast_flag));
+	}
+	if (ttl_flag){
+		setsockopt(sockfd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
+	}
 	size = 60 * 1024;		/* OK if setsockopt fails */
 	setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
 	/*发送ICMP回显请求*/

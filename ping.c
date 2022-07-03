@@ -13,6 +13,8 @@ int f_flag = 0; //-f标志
 int n_flag = 0; //-n标志
 int debug_flag = 0; //-d标志
 int ignore_route_flag = 1;//-r标志
+int quiet_flag = 0; //-q标志
+int ring_flag = 0; //-a标志
 
 
 main(int argc, char **argv)
@@ -52,7 +54,15 @@ main(int argc, char **argv)
 			else
 				n_flag = 1;
 			break;
-
+		case 'q':
+			quiet_flag = 1;
+			break;
+		case 'c':
+			sscanf(optarg, "%d", &count);
+			break;
+		case 'a':
+			ring_flag = 1;
+			break;	
 		case '?':
 			err_quit("unrecognized option: %c", c);
 		}
@@ -152,10 +162,29 @@ proc_v4(char *ptr, ssize_t len, struct timeval *tvrecv)
 		tv_sub(tvrecv, tvsend);
 		rtt = tvrecv->tv_sec * 1000.0 + tvrecv->tv_usec / 1000.0;
 		/*打印出回显应答报文的数据长度，序列号ttl，报文往返时间TTL*/
-		printf("%d bytes from %s: seq=%u, ttl=%d, rtt=%.3f ms\n",
+		if(!quiet_flag){
+			if (ring_flag == 1)
+				putchar('\a');
+			printf("%d bytes from %s: seq=%u, ttl=%d, rtt=%.3f ms\n",
 				icmplen, Sock_ntop_host(pr->sarecv, pr->salen),
 				icmp->icmp_seq, ip->ip_ttl, rtt);
-
+			if (icmp->icmp_seq == count - 1)
+			{
+				double tvalSum;
+				struct timeval tvalEnd;
+				double rttAverage;
+				gettimeofday(&tvalEnd, NULL);
+				tv_sub(&tvalEnd, &tvalBegin);
+				tvalSum = tvalEnd.tv_sec * 1000.0 + tvalEnd.tv_usec / 1000.0;
+				rttAverage = rttTotal / recvCount;
+				puts("--- ping statistics ---");
+				printf("%lld packets transmitted, %lld received, %.0lf%% packet loss, time %.2lfms\n",
+				sendCount, recvCount, (sendCount - recvCount) * 100.0 / sendCount, tvalSum);
+				printf("rtt min/avg/max = %.3lf/%.3lf/%.3lf ms\n", rttMin, rttAverage, rttMax);
+				exit(0);
+			}
+		}
+		
 	} else if (verbose) { /*打印其他类型的ICMP报文*/
 		printf("  %d bytes from %s: type = %d, code = %d\n",
 				icmplen, Sock_ntop_host(pr->sarecv, pr->salen),

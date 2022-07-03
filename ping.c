@@ -11,6 +11,9 @@ int send_count = 0;     //发送数量
 int send_time_interval = 1; //发送间隔
 int f_flag = 0; //-f标志
 int n_flag = 0; //-n标志
+int debug_flag = 0; //-d标志
+int ignore_route_flag = 1;//-r标志
+
 
 main(int argc, char **argv)
 {
@@ -36,7 +39,12 @@ main(int argc, char **argv)
 		case 'f': //极限检测，快速连续ping⼀台主机，ping的速度达到100次每秒
 			f_flag = 1;
 			break;
-		
+		case 'd':
+			debug_flag = 1;
+			break;
+		case 'r':
+			ignore_route_flag = 1;
+			break;
 		case 'l':
 			sscanf(optarg, "%d", &preload);
 			if (preload < 0 || preload > 65535)
@@ -284,7 +292,12 @@ readloop(void)
 	setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
 	/*发送ICMP回显请求*/
 	sig_alrm(SIGALRM);		/* send first packet */
-
+	if(debug_flag){
+		setsockopt(sockfd,SOL_SOCKET,SO_DEBUG,&debug_flag,sizeof(debug_flag));
+	}
+	if(ignore_route_flag){
+		setsockopt(sockfd,SOL_SOCKET,SO_DONTROUTE,&ignore_route_flag,sizeof(ignore_route_flag));
+	}
 	for ( ; ; ) {
 		len = pr->salen;
 		n = recvfrom(sockfd, recvbuf, sizeof(recvbuf), 0, pr->sarecv, &len); /*接收到达接口的ICMP报文*/

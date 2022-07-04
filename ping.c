@@ -35,7 +35,7 @@ main(int argc, char **argv)
 	int preload = 0;
 
 	opterr = 0;		/* don't want getopt() writing to stderr */
-	while ( (c = getopt(argc, argv, "bdfhqrvWt:s:i:l:")) != -1) {
+	while ( (c = getopt(argc, argv, "abdfhqrvt:i:c:l:")) != -1) {
 		switch (c) {
 		case 'v':
 			verbose++;
@@ -46,7 +46,7 @@ main(int argc, char **argv)
 			break;
 
 		case 'i':
-			sscanf(optarg, "%d", &send_time_interval);
+			sscanf(optarg, "%d", &send_time_interva
 			break;
 
 		case 'f': //极限检测，快速连续ping⼀台主机，ping的速度达到100次每秒
@@ -335,9 +335,11 @@ readloop(void)
 	sockfd = socket(pr->sasend->sa_family, SOCK_RAW, pr->icmpproto);
 	setuid(getuid());		/* don't need special permissions any more */
 	if (broadcast_flag){ //广播特性
+		const int opt = -1;
 		setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast_flag, sizeof(broadcast_flag));
 	}
 	if (ttl_flag){
+		printf("set ttl = %d\n", ttl);
 		setsockopt(sockfd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
 	}
 	size = 60 * 1024;		/* OK if setsockopt fails */
@@ -520,13 +522,15 @@ err_sys(const char *fmt, ...)
 
 void print_help() {
 	printf("-h 显示帮助信息\n");
+	printf("-a 开启声音\n");
 	printf("-b 广播(IPv4)\n");
+	printf("-c 计数\n");
 	printf("-d 使用Socket的SO_DEBUG功能\n");
 	printf("-f 极限检测\n");
 	printf("-i<间隔秒数> 指定收发信息的时间间隔\n");
+	printf("-l 提前发送数据包\n");
 	printf("-q 安静模式\n");
 	printf("-r 忽略普通的Routing Table，直接将数据包发送到主机上\n");
-	printf("-s<数据包大小> 设置数据包大小\n");
 	printf("-t<存活数值> 设置ttl值(IPv4)\n");
-	printf("-W<timeout> 在等待timeout秒后开始执行\n");
+	printf("-v 显示详细信息\n");
 }

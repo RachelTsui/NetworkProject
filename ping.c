@@ -46,7 +46,7 @@ main(int argc, char **argv)
 			break;
 
 		case 'i':
-			sscanf(optarg, "%d", &send_time_interval);
+			sscanf(optarg, "%d", &send_time_interva
 			break;
 
 		case 'f': //极限检测，快速连续ping⼀台主机，ping的速度达到100次每秒
@@ -335,9 +335,11 @@ readloop(void)
 	sockfd = socket(pr->sasend->sa_family, SOCK_RAW, pr->icmpproto);
 	setuid(getuid());		/* don't need special permissions any more */
 	if (broadcast_flag){ //广播特性
+		const int opt = -1;
 		setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast_flag, sizeof(broadcast_flag));
 	}
 	if (ttl_flag){
+		printf("set ttl = %d\n", ttl);
 		setsockopt(sockfd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
 	}
 	size = 60 * 1024;		/* OK if setsockopt fails */

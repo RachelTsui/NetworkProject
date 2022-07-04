@@ -35,7 +35,7 @@ main(int argc, char **argv)
 	int preload = 0;
 
 	opterr = 0;		/* don't want getopt() writing to stderr */
-	while ( (c = getopt(argc, argv, "bdfhqrvWt:s:i:l:")) != -1) {
+	while ( (c = getopt(argc, argv, "abdfhqrvt:i:c:l:")) != -1) {
 		switch (c) {
 		case 'v':
 			verbose++;
@@ -520,13 +520,15 @@ err_sys(const char *fmt, ...)
 
 void print_help() {
 	printf("-h 显示帮助信息\n");
+	printf("-a 开启声音\n");
 	printf("-b 广播(IPv4)\n");
+	printf("-c 计数\n");
 	printf("-d 使用Socket的SO_DEBUG功能\n");
 	printf("-f 极限检测\n");
 	printf("-i<间隔秒数> 指定收发信息的时间间隔\n");
+	printf("-l 提前发送数据包\n");
 	printf("-q 安静模式\n");
 	printf("-r 忽略普通的Routing Table，直接将数据包发送到主机上\n");
-	printf("-s<数据包大小> 设置数据包大小\n");
 	printf("-t<存活数值> 设置ttl值(IPv4)\n");
-	printf("-W<timeout> 在等待timeout秒后开始执行\n");
+	printf("-v 显示详细信息\n");
 }

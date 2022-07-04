@@ -46,7 +46,7 @@ main(int argc, char **argv)
 			break;
 
 		case 'i':
-			sscanf(optarg, "%d", &send_time_interva
+			sscanf(optarg, "%d", &send_time_interval);
 			break;
 
 		case 'f': //极限检测，快速连续ping⼀台主机，ping的速度达到100次每秒

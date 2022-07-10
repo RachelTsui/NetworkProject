@@ -17,6 +17,7 @@ int quiet_flag = 0; //-q标志
 int ring_flag = 0; //-a标志
 int broadcast_flag = 0; //-b标志
 int ttl_flag = 0;//-t标志
+int view_detail_flag = 0;//-v标志
 
 int rttCount = 0;
 int count = 0;
@@ -30,7 +31,7 @@ double rttMax = 64;
 
 main(int argc, char **argv)
 {
-	int				c;
+	int c;
 	struct addrinfo	*ai;
 	int preload = 0;
 
@@ -38,7 +39,7 @@ main(int argc, char **argv)
 	while ( (c = getopt(argc, argv, "abdfhqrvt:i:c:l:")) != -1) {
 		switch (c) {
 		case 'v':
-			verbose++;
+			view_detail_flag = 1;
 			break;
 
 		case 'h':
@@ -180,7 +181,7 @@ proc_v4(char *ptr, ssize_t len, struct timeval *tvrecv)
 		tv_sub(tvrecv, tvsend);
 		rtt = tvrecv->tv_sec * 1000.0 + tvrecv->tv_usec / 1000.0;
 		/*打印出回显应答报文的数据长度，序列号ttl，报文往返时间TTL*/
-		if(!quiet_flag){
+		if((!quiet_flag)&&view_detail_flag == 0){
 			if (ring_flag == 1)
 				putchar('\a');
 			printf("%d bytes from %s: seq=%u, ttl=%d, rtt=%.3f ms\n",
@@ -201,6 +202,32 @@ proc_v4(char *ptr, ssize_t len, struct timeval *tvrecv)
 				printf("rtt min/avg/max = %.3lf/%.3lf/%.3lf ms\n", rttMin, rttAverage, rttMax);
 				exit(0);
 			}
+		}
+		if(quiet_flag && view_detail_flag){
+			if (ring_flag == 1)
+				putchar('\a');
+			printf("%d bytes from %s: seq=%u, ttl=%d, rtt=%.3fms\n", 
+				icmplen, Sock_ntop_host(pr->sarecv, pr->salen),
+				icmp->icmp_seq, ip->ip_ttl, rtt);
+		}
+		if(!quiet_flag && view_detail_flag){
+			printf("%d bytes from %s: type = %d, code = %d\n",
+				icmplen, Sock_ntop_host(pr->sarecv, pr->salen),
+				icmp->icmp_type, icmp->icmp_code); //输出icmp的详细信息
+		}
+		if (icmp->icmp_seq == count - 1)
+		{
+			double tvalSum;
+			struct timeval tvalEnd;
+			double rttAverage;
+			gettimeofday(&tvalEnd, NULL);
+			tv_sub(&tvalEnd, &tvalBegin);
+			tvalSum = tvalEnd.tv_sec * 1000.0 + tvalEnd.tv_usec/1000.0;
+			rttAverage = rttTotal / recvCount;
+			puts("--- ping statistics ---");
+			printf("%lld packets transmitted, %lld received, %.0lf%%,packet loss, time %.2lfms\n", sendCount, recvCount, (sendCount - recvCount) * 100.0 / sendCount, tvalSum);
+			printf("rtt min/avg/max = %.3lf/%.3lf/%.3lf ms\n",rttMin, rttAverage, rttMax);
+			exit(0);
 		}
 		
 	} else if (verbose) { /*打印其他类型的ICMP报文*/

@@ -29,19 +29,6 @@ long long int sendCount = 0;
 double rttMin = 0;
 double rttMax = 64;
 
-
-
-double rtt_min = 0, rtt_max = 1200, rtt_total = 0, rtt_sqr_total = 0;
-long long recv_count = 0;
-int set_send_count = -1;  //发送指定个数的数据包
-int set_recv_count = -1;  //接收指定个数的数据包
-//interrupt_flag
-int interrupt_flag = 0;
-//设置开始序列号
-int nsent = 0; 
-struct timeval tval_start;
-
-
 main(int argc, char **argv)
 {
 	int c;
@@ -53,7 +40,6 @@ main(int argc, char **argv)
 		switch (c) {
 		case 'v':
 			view_detail_flag = 1;
-			verbose++;
 			break;
 
 		case 'h':
@@ -62,7 +48,6 @@ main(int argc, char **argv)
 
 		case 'i':
 			sscanf(optarg, "%d", &send_time_interval);
-			verbose++;
 			break;
 
 		case 'f': //极限检测，快速连续ping⼀台主机，ping的速度达到100次每秒
@@ -73,8 +58,6 @@ main(int argc, char **argv)
 			break;
 		case 'r':
 			ignore_route_flag = 1;
-			verbose++;
-			interrupt_flag = 1;
 			break;
 		case 'l':
 			sscanf(optarg, "%d", &preload);
@@ -85,24 +68,19 @@ main(int argc, char **argv)
 			break;
 		case 'q':
 			quiet_flag = 1;
-			verbose--;
 			break;
 		case 'c':
 			sscanf(optarg, "%d", &count);
-			verbose++;
-			interrupt_flag = 1;
 			break;
 		case 'a':
 			ring_flag = 1;
 			break;	
 		case 'b':
 			broadcast_flag = 1;
-			verbose++;
 			break;
 		case 't':
 			if (ttl >= 0 && ttl <= 255)
 			ttl_flag = sscanf(optarg, "%d", &ttl);
-			verbose++;
 			break;	
 		case '?':
 			err_quit("unrecognized option: %c", c);
@@ -174,6 +152,7 @@ main(int argc, char **argv)
 
 	exit(0);
 }
+
 void
 proc_v4(char *ptr, ssize_t len, struct timeval *tvrecv)
 {
@@ -202,7 +181,7 @@ proc_v4(char *ptr, ssize_t len, struct timeval *tvrecv)
 		tv_sub(tvrecv, tvsend);
 		rtt = tvrecv->tv_sec * 1000.0 + tvrecv->tv_usec / 1000.0;
 		/*打印出回显应答报文的数据长度，序列号ttl，报文往返时间TTL*/
-		if(!quiet_flag){
+		if((!quiet_flag)&&view_detail_flag == 0){
 			if (ring_flag == 1)
 				putchar('\a');
 			printf("%d bytes from %s: seq=%u, ttl=%d, rtt=%.3f ms\n",
@@ -223,6 +202,32 @@ proc_v4(char *ptr, ssize_t len, struct timeval *tvrecv)
 				printf("rtt min/avg/max = %.3lf/%.3lf/%.3lf ms\n", rttMin, rttAverage, rttMax);
 				exit(0);
 			}
+		}
+		if(quiet_flag && view_detail_flag){
+			if (ring_flag == 1)
+				putchar('\a');
+			printf("%d bytes from %s: seq=%u, ttl=%d, rtt=%.3fms\n", 
+				icmplen, Sock_ntop_host(pr->sarecv, pr->salen),
+				icmp->icmp_seq, ip->ip_ttl, rtt);
+		}
+		if(!quiet_flag && view_detail_flag){
+			printf("%d bytes from %s: type = %d, code = %d\n",
+				icmplen, Sock_ntop_host(pr->sarecv, pr->salen),
+				icmp->icmp_type, icmp->icmp_code); //输出icmp的详细信息
+		}
+		if (icmp->icmp_seq == count - 1)
+		{
+			double tvalSum;
+			struct timeval tvalEnd;
+			double rttAverage;
+			gettimeofday(&tvalEnd, NULL);
+			tv_sub(&tvalEnd, &tvalBegin);
+			tvalSum = tvalEnd.tv_sec * 1000.0 + tvalEnd.tv_usec/1000.0;
+			rttAverage = rttTotal / recvCount;
+			puts("--- ping statistics ---");
+			printf("%lld packets transmitted, %lld received, %.0lf%%,packet loss, time %.2lfms\n", sendCount, recvCount, (sendCount - recvCount) * 100.0 / sendCount, tvalSum);
+			printf("rtt min/avg/max = %.3lf/%.3lf/%.3lf ms\n",rttMin, rttAverage, rttMax);
+			exit(0);
 		}
 		
 	} else if (verbose) { /*打印其他类型的ICMP报文*/
@@ -387,7 +392,6 @@ readloop(void)
 		gettimeofday(&tval, NULL); /*获取报文到达时间*/
 		(*pr->fproc)(recvbuf, n, &tval); /*处理接收的报文*/
 	}
-	printf("test\n");
 }
 
 void
@@ -401,7 +405,6 @@ sig_alrm(int signo) //-i 定时发送
         	alarm(send_time_interval);
         return;         /* probably interrupts recvfrom() */
 }
-
 
 void
 tv_sub(struct timeval *out, struct timeval *in)

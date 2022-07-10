@@ -36,7 +36,7 @@ main(int argc, char **argv)
 	int preload = 0;
 
 	opterr = 0;		/* don't want getopt() writing to stderr */
-	while ( (c = getopt(argc, argv, "abdfhqrvt:i:c:l:")) != -1) {
+	while ( (c = getopt(argc, argv, "abdfhqrvts:i:c:l:")) != -1) {
 		switch (c) {
 		case 'v':
 			view_detail_flag = 1;
@@ -82,6 +82,9 @@ main(int argc, char **argv)
 			if (ttl >= 0 && ttl <= 255)
 			ttl_flag = sscanf(optarg, "%d", &ttl);
 			break;	
+		case 's': 
+			sscanf(optarg, "%d", &datalen);
+			break;
 		case '?':
 			err_quit("unrecognized option: %c", c);
 		}
@@ -552,6 +555,7 @@ void print_help() {
 	printf("-a 开启声音\n");
 	printf("-b 广播(IPv4)\n");
 	printf("-c 计数\n");
+	printf("-s 设置数据包大小\n");
 	printf("-d 使用Socket的SO_DEBUG功能\n");
 	printf("-f 极限检测\n");
 	printf("-i<间隔秒数> 指定收发信息的时间间隔\n");

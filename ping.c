@@ -17,6 +17,7 @@ int quiet_flag = 0; //-q标志
 int ring_flag = 0; //-a标志
 int broadcast_flag = 0; //-b标志
 int ttl_flag = 0;//-t标志
+int view_detail_flag = 0;//-v标志
 
 int rttCount = 0;
 int count = 0;
@@ -28,9 +29,22 @@ long long int sendCount = 0;
 double rttMin = 0;
 double rttMax = 64;
 
+
+
+double rtt_min = 0, rtt_max = 1200, rtt_total = 0, rtt_sqr_total = 0;
+long long recv_count = 0;
+int set_send_count = -1;  //发送指定个数的数据包
+int set_recv_count = -1;  //接收指定个数的数据包
+//interrupt_flag
+int interrupt_flag = 0;
+//设置开始序列号
+int nsent = 0; 
+struct timeval tval_start;
+
+
 main(int argc, char **argv)
 {
-	int				c;
+	int c;
 	struct addrinfo	*ai;
 	int preload = 0;
 
@@ -38,6 +52,7 @@ main(int argc, char **argv)
 	while ( (c = getopt(argc, argv, "abdfhqrvt:i:c:l:")) != -1) {
 		switch (c) {
 		case 'v':
+			view_detail_flag = 1;
 			verbose++;
 			break;
 
@@ -47,6 +62,7 @@ main(int argc, char **argv)
 
 		case 'i':
 			sscanf(optarg, "%d", &send_time_interval);
+			verbose++;
 			break;
 
 		case 'f': //极限检测，快速连续ping⼀台主机，ping的速度达到100次每秒
@@ -57,6 +73,8 @@ main(int argc, char **argv)
 			break;
 		case 'r':
 			ignore_route_flag = 1;
+			verbose++;
+			interrupt_flag = 1;
 			break;
 		case 'l':
 			sscanf(optarg, "%d", &preload);
@@ -67,19 +85,24 @@ main(int argc, char **argv)
 			break;
 		case 'q':
 			quiet_flag = 1;
+			verbose--;
 			break;
 		case 'c':
 			sscanf(optarg, "%d", &count);
+			verbose++;
+			interrupt_flag = 1;
 			break;
 		case 'a':
 			ring_flag = 1;
 			break;	
 		case 'b':
 			broadcast_flag = 1;
+			verbose++;
 			break;
 		case 't':
 			if (ttl >= 0 && ttl <= 255)
 			ttl_flag = sscanf(optarg, "%d", &ttl);
+			verbose++;
 			break;	
 		case '?':
 			err_quit("unrecognized option: %c", c);
@@ -151,7 +174,6 @@ main(int argc, char **argv)
 
 	exit(0);
 }
-
 void
 proc_v4(char *ptr, ssize_t len, struct timeval *tvrecv)
 {
@@ -365,6 +387,7 @@ readloop(void)
 		gettimeofday(&tval, NULL); /*获取报文到达时间*/
 		(*pr->fproc)(recvbuf, n, &tval); /*处理接收的报文*/
 	}
+	printf("test\n");
 }
 
 void
@@ -378,6 +401,7 @@ sig_alrm(int signo) //-i 定时发送
         	alarm(send_time_interval);
         return;         /* probably interrupts recvfrom() */
 }
+
 
 void
 tv_sub(struct timeval *out, struct timeval *in)
